@@ -1,0 +1,8 @@
+{
+    "name": "wangyongdong/WechatShare",
+    "type": "library",
+    "require": {},
+    "autoload": {
+        "files": ["init.php"]
+    }
+}
