@@ -6,8 +6,15 @@ namespace RedisManager;
  * @package RedisManager
  */
 class RedisManager {
+    /**
+     * @var null
+     */
     private static $_instance = NULL;
-    private static $_config = [
+
+    /**
+     * @var array
+     */
+    private static $_config = array(
         'host' => '127.0.0.1',
         'port' => 6379,
         'password' => '',       //密码
@@ -15,15 +22,18 @@ class RedisManager {
         'timeout' => 0,         //超时时间
         'persistent' => false,  //是否长链接
         'expire' => 7000,       //过期时间
-    ];
+    );
 
     /**
      * 私有化构造函数，防止外界调用构造新的对象
+     * RedisManager constructor.
      */
     private function __construct() {}
 
     /**
      * 获取redis连接的唯一出口
+     * @param $config
+     * @return Redis
      */
     private static function getInstance($config) {
         if(!self::$_instance instanceof self) {
@@ -79,6 +89,12 @@ class RedisManager {
         return $data;
     }
 
+    /**
+     * @param $sKey
+     * @param $sValue
+     * @param array $config
+     * @return bool
+     */
     public static function set($sKey, $sValue, $config = array()) {
         if (empty($sKey) || !is_scalar($sValue)) {
             return false;

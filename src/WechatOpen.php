@@ -1,24 +1,45 @@
 <?php
-namespace WechatOpen;
+namespace WechatShare;
 use RedisManager;
 
+/**
+ * 获取微信分享信息
+ * Class WechatOpen
+ * @package WechatShare
+ * Created on 2018/5/10 17:09
+ * Created by wangyongdong
+ */
 class WechatOpen {
+    /*
+     * @var string
+     */
     private static $appId;
+
+    /*
+     * @var string
+     */
     private static $appSecret;
+
+    /*
+     * @var array
+     */
     private static $redis_config;
 
     /**
      * 获取分享凭证
      * @param $appId
      * @param $appSecret
+     * @param array $array
+     * @param array $config
      * @return array
      */
-    public static function getShare($appId, $appSecret, $config = array()) {
+    public static function getShare($appId, $appSecret, $aDefault = array(), $config = array()) {
         self::$appId = $appId;
         self::$appSecret = $appSecret;
         self::$redis_config = $config;
 
-        return self::getSignPackage();
+        $aSignPackage = self::getSignPackage();
+        return !empty($aDefault) ? array_merge($aSignPackage, $aDefault) : $aSignPackage;
     }
 
     /**
@@ -35,7 +56,9 @@ class WechatOpen {
         return self::httpSend($url);
     }
 
-    //分享
+    /**
+     * @return mixed|string|void
+     */
     private static function getSignPackage() {
         $jsapiTicket = self::getJsApiTicket();
 
@@ -65,58 +88,50 @@ class WechatOpen {
             "signature" => $signature,
             "rawString" => $string
         );
-        return json_encode($signPackage);
+        return $signPackage;
     }
 
-    //票据
+    /**
+     * 票据
+     * @return bool|mixed
+     */
     private static function getJsApiTicket() {
-        return RedisManager\RedisManager::load('jsapi_ticket',array(self::$appId, self::$appSecret), function() {
-            $accessToken = WechatOpen::getAccessToken();
+        $appid = WechatOpen::$appId;
+        $appSecret = WechatOpen::$appSecret;
+        return RedisManager\RedisManager::load('jsapi_ticket',array($appid, $appSecret), function() {
+            $accessToken = \WechatShare\WechatOpen::getAccessToken();
             // 如果是企业号用以下 URL 获取 ticket
             $url = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token=" . $accessToken;
-            $res = WechatOpen::httpSend($url);
-            if ($res['ticket']) {
+            $res = \WechatShare\WechatOpen::httpSend($url);
+            if (!empty($res['ticket'])) {
                 return $res['ticket'];
             }
         }, self::$redis_config);
     }
 
-    //accessToken
+    /**
+     * @return bool|mixed
+     */
     public static function getAccessToken() {
-        return RedisManager\RedisManager::load('access_token',array(self::$appId, self::$appSecret), function() {
+        $appid = WechatOpen::$appId;
+        $appSecret = WechatOpen::$appSecret;
+        return RedisManager\RedisManager::load('access_token', array($appid, $appSecret), function() use ($appid, $appSecret) {
             // 如果是企业号用以下URL获取access_token
-            $url = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=" . self::$appId . "&secret=" . self::$appSecret . "";
-            $res = WechatOpen::httpSend($url);
-            if ($res['access_token']) {
+            $url = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=" . $appid . "&secret=" . $appSecret;
+            $res = \WechatShare\WechatOpen::httpSend($url);
+            if (!empty($res['access_token'])) {
                 return $res['access_token'];
             }
         }, self::$redis_config);
     }
 
-    public static function downloadWeixinFile($url) {
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_NOBODY, 0);    //只取body头
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        $package = curl_exec($ch);
-        $httpinfo = curl_getinfo($ch);
-        curl_close($ch);
-        $imageAll = array_merge(array('header' => $httpinfo), array('body' => $package));
-        return $imageAll;
-    }
-
-    public static function saveWeixinFile($filename, $filecontent) {
-        $local_file = fopen($filename, 'w');
-        if (false !== $local_file) {
-            if (false !== fwrite($local_file, $filecontent)) {
-                fclose($local_file);
-            }
-        }
-    }
-
-    private static function httpSend($url, $params = array(), $method = 'get') {
+    /**
+     * @param $url
+     * @param array $params
+     * @param string $method
+     * @return array|mixed|object
+     */
+    public static function httpSend($url, $params = array(), $method = 'get') {
         $ch = curl_init();
         if($method == 'get') {
             $sParm = http_build_query($params);
@@ -131,7 +146,6 @@ class WechatOpen {
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
             }
         }
-
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 500);
@@ -152,6 +166,10 @@ class WechatOpen {
         return json_decode($response, true);
     }
 
+    /**
+     * @param int $length
+     * @return string
+     */
     private static function createNonceStr($length = 16) {
         $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         $str = "";
