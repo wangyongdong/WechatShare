@@ -1,20 +1,58 @@
-# 微信分享sdk封装
+## 微信分享sdk封装
 
-> 基于微信 Jssdk 封装
+基于微信 Jssdk 封装分享方法，用户 access_token 和 jsapi_ticket 数据存放在 redis 中。
 
-example:
+
+
+### 使用方法:
+
+- composer.json 添加代码：
+
+```json
+{
+    "repositories": {
+        "packagist": {
+            "type": "composer",
+            "url": "https://packagist.phpcomposer.com"
+        },
+        "wangyongdong/WechatShare": {
+            "url": "git@github.com:wangyongdong/WechatShare.git",
+            "type": "vcs"
+        }
+    },
+    "require": {
+        "wangyongdong/WechatShare": "dev-master"
+    }
+}
 
 ```
+
+- 项目根目录执行代码：`composer install` 更新包
+
+
+
+### 示例：
+
+php 示例：
+
+```php
 require('../init.php');
 
 $appid = 'xxxxxx';  //appid
 $secret = 'xxxxxx'; //密钥
-$aShareInfo = WechatOpen\WechatOpen::getShare($appid, $secret);
+$default_array = array(
+    'title' => '',
+);
+$redis_array = array(
+    'host' => '127.0.0.1',
+    'port' => 6379,
+);
+$aShareInfo = WechatShare\WechatOpen::getShare($appid, $secret, $default_array, $redis_array);
 $aShare = json_decode($aShareInfo, true);
 print_r($aShare);
 ```
 
-html
+html 示例：
 
 ```angular2html
 
@@ -68,9 +106,9 @@ html
 		wx.hideMenuItems({
 	    	menuList: [
 	      		"menuItem:originPage",
-	           "menuItem:copyUrl", // 复制链接
-	          	"menuItem:openWithQQBrowser",
-	           "menuItem:openWithSafari"
+	        	"menuItem:copyUrl", // 复制链接
+	        	"menuItem:openWithQQBrowser",
+	        	"menuItem:openWithSafari"
 	       	]
 		}); 
 	});
