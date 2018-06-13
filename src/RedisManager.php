@@ -6,6 +6,7 @@ namespace RedisManager;
  * @package RedisManager
  */
 class RedisManager {
+
     /**
      * @var null
      */
@@ -25,128 +26,151 @@ class RedisManager {
     );
 
     /**
-     * 私有化构造函数，防止外界调用构造新的对象
+     * @var null|\Redis
+     */
+    private $redis = null;
+
+    /**
+     * 私有化构造函数，防止外界调用构造新的对象，连接redis
      * RedisManager constructor.
+     * @param array $config
      */
-    private function __construct() {}
-
-    /**
-     * 获取redis连接的唯一出口
-     * @param $config
-     * @return Redis
-     */
-    private static function getInstance($config) {
-        if(!self::$_instance instanceof self) {
-            self::$_instance = new self();
-        }
+    private function __construct(array $config) {
         //设置配置参数
-        self::$_config = array_merge(self::$_config, $config);
-
-        // 调用私有化方法
-        return self::$_instance->connect();
-    }
-
-    /**
-     * 连接ocean 上的redis的私有化方法
-     * @return Redis
-     */
-     private function connect() {
+        if(!empty($config)) {
+            self::$_config = array_merge(self::$_config, $config);
+        }
         try {
             $func = self::$_config['persistent'] ? 'pconnect' : 'connect';     //长链接
 
-            $redis = new \Redis();
-            $redis->$func(self::$_config['host'], self::$_config['port'], self::$_config['timeout']);
+            $this->redis = new \Redis();
+            $this->redis->$func(self::$_config['host'], self::$_config['port'], self::$_config['timeout']);
 
             //auth
             if (!empty(self::$_config['password'])) {
-                $redis->auth(self::$_config['password']);
+                $this->redis->auth(self::$_config['password']);
             }
 
             //选择库
-            $redis->select(self::$_config['index']);
+            $this->redis->select(self::$_config['index']);
+
         } catch (Exception $e) {
             echo $e->getMessage().'<br/>';
         }
+    }
 
-        return $redis;
+
+    /**
+     * 获取redis连接的唯一出口
+     * @param array $config
+     * @return null|RedisManager
+     */
+    public static function getInstance($config = array()) {
+        if(!self::$_instance instanceof self) {
+            self::$_instance = new self($config);
+        }
+        return self::$_instance;
     }
 
     /**
-     * 获取缓存内容
+     * 字符串 - 获取缓存内容
      * @param $sKey 键值
-     * @param $iDBIndex DB索引
      * return string
      */
-    public static function get($sKey, $config = array()) {
+    public function get($sKey) {
         if (empty($sKey)) {
             return false;
         }
 
-        $redis = self::getInstance($config);
-        $data = $redis->get($sKey);
-        $redis->close();
-
-        return $data;
+        $data = $this->redis->get($sKey);
+        return !empty($data) ? json_decode($data, true) : $data;
     }
 
     /**
+     * 字符串 - 设置缓存
      * @param $sKey
      * @param $sValue
-     * @param array $config
+     * @param string $expire
      * @return bool
      */
-    public static function set($sKey, $sValue, $config = array()) {
-        if (empty($sKey) || !is_scalar($sValue)) {
+    public function set($sKey, $sValue, $expire = null) {
+        if (empty($sKey)) {
             return false;
         }
-        $redis = self::getInstance($config);
 
-        $redis->set($sKey, $sValue);
-        if (!empty($config['expire'])) {
-            self::$_config['expire'] = !empty($config['expire']) ? $config['expire'] : self::$_config['expire'];
-            $redis->expire($sKey, self::$_config['expire']);
+        $this->redis->set($sKey, json_encode($sValue));
+
+        if (!empty($expire)) {
+            self::$_config['expire'] = !empty($expire) ? $expire : self::$_config['expire'];
+            $this->redis->expire($sKey, self::$_config['expire']);
         }
-        $redis->close();
+
     }
 
-    /**
-     * @param $key              缓存key
-     * @param string $params    参数
-     * @param null $callback    回调函数
-     * @param array $config     配置
-     * @return bool|mixed
-     */
-    public static function load($key, $params = '', $callback = null, $config = array()) {
+    public function load($key, $params = '', $callback = null, $expire = 0) {
         if (!is_callable($callback)) {
             return false;
         }
 
-        $redis = self::getInstance($config);
-        $key = self::suffix($key, $params);
+        $key = $this->prefix($key, $params);
 
-        $data = $redis->get($key);
+        $data = $this->get($key);
 
         if (empty($data) && is_callable($callback)) {
             $data = $callback();
+
             if(!empty($data)) {
-                $data = json_encode($data);
-                $redis->set($key, $data);
+                $this->set($key, $data, $expire);
             }
         }
-        $redis->close();
+        return $data;
+    }
 
-        if(!empty($data)) {
-            return json_decode($data, true);
-        }
-
+    public function getAll($sKey) {
+        $arr = $this->keys($sKey);
+        return $this->redis->mget($arr);
     }
 
     /**
-     * 获取缓存键后缀
+     * 获取key
+     * @param $sKey
+     * @return array|void
+     */
+    public function keys($sKey) {
+        $sKey = $sKey . ':*';
+        return $this->redis->keys($sKey);
+    }
+
+    /**
+     * 删除键值
+     * @param array|string $key
+     */
+    public function del($key) {
+        if(is_array($key) || is_string($key)) {
+            $this->redis->del($key);  //(string|arr)删除key，支持数组批量删除【返回删除个数】
+        }
+    }
+
+    /**
+     * 清空整个redis
+     */
+    public function flushAll() {
+        $this->redis->flushAll();
+    }
+
+    /**
+     * 清空当前redis库
+     */
+    public function flushDB() {
+        $this->redis->flushDB();
+    }
+
+    /**
+     * 获取keys
      * @param string | array $params
      * @return string
      */
-    public static function suffix($key, $params = '') {
+    public function prefix($key, $params = '') {
         $suffix = '';
         if(is_array($params)) {
             $suffix .= implode('_', $params);
@@ -163,4 +187,11 @@ class RedisManager {
         // TODO: Implement __clone() method.
     }
 
+    /**
+     * 析构函数：销毁redis链接
+     */
+    public function __destruct () {
+        $this->redis->close();
+        $this->redis = NULL;
+    }
 }

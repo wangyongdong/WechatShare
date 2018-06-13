@@ -26,6 +26,11 @@ class WechatOpen {
     private static $redis_config;
 
     /**
+     * @var int
+     */
+    private static $expire = 7000; //有效时间是7200秒
+
+    /**
      * 获取分享凭证
      * @param $appId
      * @param $appSecret
@@ -61,14 +66,11 @@ class WechatOpen {
      */
     private static function getSignPackage() {
         $jsapiTicket = self::getJsApiTicket();
-
         // 注意 URL 一定要动态获取，不能 hardcode.
         $sProtocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
         $url = $sProtocol.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
-
         $timestamp = time();
         $nonceStr = self::createNonceStr();
-
         // 这里参数的顺序要按照 key 值 ASCII 码升序排序
         //$string = "jsapi_ticket=$jsapiTicket&noncestr=$nonceStr&timestamp=$timestamp&url=$url";
         $arr = array('jsapi_ticket' => $jsapiTicket, 'noncestr' => $nonceStr, 'timestamp' => $timestamp, 'url' => $url);
@@ -98,15 +100,17 @@ class WechatOpen {
     private static function getJsApiTicket() {
         $appid = WechatOpen::$appId;
         $appSecret = WechatOpen::$appSecret;
-        return RedisManager\RedisManager::load('jsapi_ticket',array($appid, $appSecret), function() {
+        $redis = RedisManager\RedisManager::getInstance();
+        return $redis->load('wxshare_jsapi_ticket',array($appid, $appSecret), function() {
             $accessToken = \WechatShare\WechatOpen::getAccessToken();
+
             // 如果是企业号用以下 URL 获取 ticket
             $url = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token=" . $accessToken;
             $res = \WechatShare\WechatOpen::httpSend($url);
             if (!empty($res['ticket'])) {
                 return $res['ticket'];
             }
-        }, self::$redis_config);
+        }, self::$expire);
     }
 
     /**
@@ -115,14 +119,16 @@ class WechatOpen {
     public static function getAccessToken() {
         $appid = WechatOpen::$appId;
         $appSecret = WechatOpen::$appSecret;
-        return RedisManager\RedisManager::load('access_token', array($appid, $appSecret), function() use ($appid, $appSecret) {
+
+        $redis = RedisManager\RedisManager::getInstance();
+        return $redis->load('wxshare_access_token', array($appid, $appSecret), function() use ($appid, $appSecret) {
             // 如果是企业号用以下URL获取access_token
             $url = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=" . $appid . "&secret=" . $appSecret;
             $res = \WechatShare\WechatOpen::httpSend($url);
             if (!empty($res['access_token'])) {
                 return $res['access_token'];
             }
-        }, self::$redis_config);
+        }, self::$expire);
     }
 
     /**
