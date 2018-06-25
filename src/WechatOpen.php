@@ -1,6 +1,6 @@
 <?php
 namespace WechatShare;
-use RedisManager;
+use RedisClient;
 
 /**
  * 获取微信分享信息
@@ -100,8 +100,7 @@ class WechatOpen {
     private static function getJsApiTicket() {
         $appid = WechatOpen::$appId;
         $appSecret = WechatOpen::$appSecret;
-        $redis = RedisManager\RedisManager::getInstance();
-        return $redis->load('wxshare_jsapi_ticket',array($appid, $appSecret), function() {
+        return RedisClient\RedisManager::load('wxshare_jsapi_ticket',array($appid, $appSecret), function() {
             $accessToken = \WechatShare\WechatOpen::getAccessToken();
 
             // 如果是企业号用以下 URL 获取 ticket
@@ -119,9 +118,7 @@ class WechatOpen {
     public static function getAccessToken() {
         $appid = WechatOpen::$appId;
         $appSecret = WechatOpen::$appSecret;
-
-        $redis = RedisManager\RedisManager::getInstance();
-        return $redis->load('wxshare_access_token', array($appid, $appSecret), function() use ($appid, $appSecret) {
+        return RedisClient\RedisManager::load('wxshare_access_token', array($appid, $appSecret), function() use ($appid, $appSecret) {
             // 如果是企业号用以下URL获取access_token
             $url = "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=" . $appid . "&secret=" . $appSecret;
             $res = \WechatShare\WechatOpen::httpSend($url);
@@ -168,7 +165,6 @@ class WechatOpen {
         } catch (Exception $e) {
             $response = json_encode(array());
         }
-
         return json_decode($response, true);
     }
 
