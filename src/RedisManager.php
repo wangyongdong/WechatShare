@@ -16,7 +16,7 @@ class RedisManager {
     }
 
     public static function getRedis($config = array()) {
-        if(!class_exists('\Redis')) {
+        if(class_exists('\Redis')) {
             return \RedisClient\RedisCli::getInstance($config);
         }
         if(class_exists('\Predis\Client')) {
