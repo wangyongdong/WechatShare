@@ -141,6 +141,22 @@ class RedisCli {
     }
 
     /**
+     * 清除缓存集合
+     * @param $sKey 键值
+     */
+    public function deleteBunch($sKey) {
+        if (empty($sKey)) {
+            return false;
+        }
+
+        $aKeys = $this->redis->keys($sKey . '*');
+        $this->del($aKeys);
+//        foreach($aKeys as $k => $v) {
+//            $redis->delete($v);
+//        }
+    }
+
+    /**
      * 删除键值
      * @param array|string $key
      */
